@@ -1,0 +1,31 @@
+services:
+  xpra:
+    user: "1000:1000"
+    image: xpra-brave
+    container_name: xpra-brave
+    ports:
+      - "8443:8443"
+    shm_size: "1g"
+    cap_drop:
+      - ALL
+ 
+    security_opt:
+      #   - seccomp:unconfined
+      - seccomp:./seccomp_chrome.json
+      #- apparmor:unconfined
+      - apparmor:pukaipu
+    
+    #- no-new-privileges:true
+    volumes:
+      - xpra_certs:/data/certs
+      - xpra_home:/data/home
+    environment:
+      BRAVE_URL: "https://example.com"
+      BRAVE_ARGS: "--disable-dev-shm-usage --no-first-run --disable-gpu --disable-software-rasterizer --force-dark-mode --enable-features=WebUIDarkMode"
+    restart: unless-stopped
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=128m,mode=1777
+      #- /home/appuser/.cache:rw,noexec,nosuid,nodev,size=128m,mode=0770
+volumes:
+  xpra_certs:
+  xpra_home:

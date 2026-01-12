@@ -1,0 +1,25 @@
+:8443 {
+	# Server cert signed by your CA
+	tls /data/certs/server.crt /data/certs/server.key {
+		client_auth {
+			mode require_and_verify
+			trusted_ca_cert_file /data/certs/ca.crt
+		}
+	}
+
+	log {
+		output stdout
+		format json
+	}
+
+	@xpra_ws {
+		header Connection *Upgrade*
+		header Upgrade websocket
+	}
+	reverse_proxy @xpra_ws 127.0.0.1:14500
+
+	root * /usr/share/xpra/www
+	try_files {path} {path}/ /connect.html
+	file_server
+	encode gzip zstd
+}

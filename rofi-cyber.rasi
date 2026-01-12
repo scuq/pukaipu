@@ -1,0 +1,50 @@
+* {
+  bg:        #0b0f14;
+  fg:        #d6deeb;
+  dim:       #52606d;
+  pink:      #ff2bd6;
+  green:     #00ff9a;
+  border:    #1b2632;
+
+  background-color: @bg;
+  text-color: @fg;
+}
+
+window {
+  width: 52%;
+  border: 1px;
+  border-color: @border;
+  padding: 8px;
+}
+
+inputbar {
+  padding: 10px;
+  border: 0px 0px 1px 0px;
+  border-color: @border;
+}
+
+prompt { text-color: @pink; }
+textbox-prompt-colon { text-color: @pink; }
+
+listview {
+  padding: 8px;
+}
+
+element {
+  padding: 6px;
+  text-color: @fg;
+}
+
+element selected {
+  background-color: @pink;
+  text-color: #000000;
+}
+
+element-text selected {
+  text-color: #000000;
+}
+
+message {
+  padding: 6px;
+  text-color: @dim;
+}
