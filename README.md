@@ -111,3 +111,10 @@ What this is (and isn’t)
  * a multi-user desktop inside one container
  * a full VDI replacement
  * a Wayland-native environment (Xpra/X11-based)
+
+# Name origin
+
+pukaipu comes from Hawaiian “puka ipu”:
+	•	puka — door, opening, portal
+	•	ipu — container, vessel
+
