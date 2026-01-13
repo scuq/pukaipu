@@ -75,12 +75,12 @@ RUN useradd -m -u 1000 -s /bin/bash appuser
 
 # Store default configs in the image (used for first-run seeding)
 RUN mkdir -p /opt/default-config/qtile /opt/default-config/rofi
-COPY qtile-config.py /opt/default-config/qtile/config.py
-COPY rofi-cyber.rasi /opt/default-config/rofi/theme.rasi
+COPY config/container/qtile-config.py /opt/default-config/qtile/config.py
+COPY config/container/rofi-cyber.rasi /opt/default-config/rofi/theme.rasi
 
 # --- Kitty default config ---
 RUN mkdir -p /opt/default-config/kitty
-COPY kitty.conf /opt/default-config/kitty/kitty.conf
+COPY config/container/kitty.conf /opt/default-config/kitty/kitty.conf
 
 # --- Qtile + launcher + terminal (kitty) ---
 RUN apt-get update && apt-get install -y --no-install-recommends \

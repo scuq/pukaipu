@@ -6,65 +6,80 @@ export GALLIUM_DRIVER=llvmpipe
 
 log() { echo "[$(date -Iseconds)] $*"; }
 
-APPUSER="appuser"
 APPUID="$(id -u)"
 APPGID="$(id -g)"
 
-# If you forgot user: 1000:1000, fail loudly (otherwise you'll chase perms forever)
-if [ "${APPUID}" != "1000" ]; then
-  log "ERROR: must run as uid 1000. Set docker-compose: user: \"1000:1000\""
-  exit 1
-fi
+# Option A: HOME is the bind-mounted host home inside the container
+export HOME="${HOME:-/data/home}"
+
+# Sanity
+[[ -d "${HOME}" ]] || { log "ERROR: HOME '${HOME}' does not exist"; exit 1; }
+[[ -w "${HOME}" ]] || { log "ERROR: HOME '${HOME}' not writable by uid=${APPUID} gid=${APPGID}"; exit 1; }
 
 # -------------------------------------------------------------------
-# 1) Certs (writes to /data/certs; must be writable by uid 1000)
+# 1) Certs
 # -------------------------------------------------------------------
+[[ -d /data/certs && -w /data/certs ]] || { log "ERROR: /data/certs missing or not writable by uid=${APPUID}"; exit 1; }
 /usr/local/bin/cert.sh
 
 # -------------------------------------------------------------------
-# 2) Persistent HOME config: seed + link (no chown)
+# 2) Persistent config (Option A: HOME == /data/home, so no symlink)
 # -------------------------------------------------------------------
 PERSIST_HOME="/data/home"
 PERSIST_CONFIG="${PERSIST_HOME}/.config"
 DEFAULT_CFG_ROOT="/opt/default-config"
 
-mkdir -p "${PERSIST_HOME}"
+# If /data/home/.config is (accidentally) a symlink, remove it (break loops)
+if [[ -L "${PERSIST_CONFIG}" ]]; then
+  log "[config] removing bad symlink: ${PERSIST_CONFIG}"
+  rm -f "${PERSIST_CONFIG}"
+fi
+
+# Ensure it's a real directory
 mkdir -p "${PERSIST_CONFIG}/qtile" "${PERSIST_CONFIG}/rofi" "${PERSIST_CONFIG}/kitty"
 mkdir -p "${PERSIST_HOME}/brave-profile" "${PERSIST_HOME}/.cache" "${PERSIST_HOME}/.local/share"
 
-# Link /home/appuser/.config -> /data/home/.config (idempotent)
-mkdir -p "/home/${APPUSER}"
-rm -rf "/home/${APPUSER}/.config" 2>/dev/null || true
-ln -snf "${PERSIST_CONFIG}" "/home/${APPUSER}/.config"
+# If HOME is NOT the persist home, then link ~/.config -> persist config.
+# But when HOME==/data/home, ~/.config already *is* /data/home/.config, so do nothing.
+if [[ "${HOME}" != "${PERSIST_HOME}" ]]; then
+  # avoid nuking a real dir by accident; only replace non-dir or wrong target
+  if [[ -e "${HOME}/.config" && ! -L "${HOME}/.config" && ! -d "${HOME}/.config" ]]; then
+    rm -f "${HOME}/.config" || true
+  fi
+  if [[ -d "${HOME}/.config" && ! -L "${HOME}/.config" ]]; then
+    rm -rf "${HOME}/.config" || true
+  fi
+  if [[ -L "${HOME}/.config" ]]; then
+    # if it's a self-loop or points elsewhere, replace it
+    rm -f "${HOME}/.config" || true
+  fi
+  ln -snf "${PERSIST_CONFIG}" "${HOME}/.config"
+fi
 
-# Seed defaults only if missing (no overwrite)
-if [ -f "${DEFAULT_CFG_ROOT}/qtile/config.py" ] && [ ! -s "${PERSIST_CONFIG}/qtile/config.py" ]; then
+# Seed defaults only if missing
+if [[ -f "${DEFAULT_CFG_ROOT}/qtile/config.py" && ! -s "${PERSIST_CONFIG}/qtile/config.py" ]]; then
   log "[config] seeding qtile config"
   cp -a "${DEFAULT_CFG_ROOT}/qtile/config.py" "${PERSIST_CONFIG}/qtile/config.py"
 fi
-if [ -f "${DEFAULT_CFG_ROOT}/rofi/theme.rasi" ] && [ ! -s "${PERSIST_CONFIG}/rofi/theme.rasi" ]; then
+if [[ -f "${DEFAULT_CFG_ROOT}/rofi/theme.rasi" && ! -s "${PERSIST_CONFIG}/rofi/theme.rasi" ]]; then
   log "[config] seeding rofi theme"
   cp -a "${DEFAULT_CFG_ROOT}/rofi/theme.rasi" "${PERSIST_CONFIG}/rofi/theme.rasi"
 fi
-if [ -f "${DEFAULT_CFG_ROOT}/kitty/kitty.conf" ] && [ ! -s "${PERSIST_CONFIG}/kitty/kitty.conf" ]; then
+if [[ -f "${DEFAULT_CFG_ROOT}/kitty/kitty.conf" && ! -s "${PERSIST_CONFIG}/kitty/kitty.conf" ]]; then
   log "[config] seeding kitty config"
   cp -a "${DEFAULT_CFG_ROOT}/kitty/kitty.conf" "${PERSIST_CONFIG}/kitty/kitty.conf"
 fi
 
 # -------------------------------------------------------------------
-# 3) Start Caddy (same user is fine; port 8443 is unprivileged)
+# 3) Start Caddy
 # -------------------------------------------------------------------
 caddy run --config /etc/caddy/Caddyfile --adapter caddyfile &
 CADDY_PID=$!
-
 sleep 0.2
-if ! kill -0 "$CADDY_PID" 2>/dev/null; then
-  log "[caddy] failed to start"
-  exit 1
-fi
+kill -0 "$CADDY_PID" 2>/dev/null || { log "[caddy] failed to start"; exit 1; }
 
 # -------------------------------------------------------------------
-# 4) Brave profile: cleanup singleton locks
+# 4) Brave profile cleanup + args
 # -------------------------------------------------------------------
 BRAVE_PROFILE_DIR="${BRAVE_PROFILE_DIR:-/data/home/brave-profile}"
 mkdir -p "${BRAVE_PROFILE_DIR}"
@@ -82,20 +97,16 @@ if [[ "${BRAVE_ARGS}" != *"--user-data-dir="* ]]; then
 fi
 
 # -------------------------------------------------------------------
-# 5) Xpra runtime: keep it inside /data/home (writable by uid 1000)
+# 5) Xpra runtime inside writable storage
 # -------------------------------------------------------------------
-export HOME="/home/${APPUSER}"
-export XDG_RUNTIME_DIR="/data/home/.cache/xdg-runtime-${APPUID}"
+export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/data/home/.cache/xdg-runtime-${APPUID}}"
 mkdir -p "${XDG_RUNTIME_DIR}/xpra"
 chmod 700 "${XDG_RUNTIME_DIR}" "${XDG_RUNTIME_DIR}/xpra" 2>/dev/null || true
 
-# Ensure xpra does not touch /root/.Xauthority
 export XAUTHORITY="${HOME}/.Xauthority"
-mkdir -p "$(dirname "${XAUTHORITY}")"
 touch "${XAUTHORITY}" 2>/dev/null || true
 chmod 600 "${XAUTHORITY}" 2>/dev/null || true
 
-# Clean stale X locks
 DNUM="${XPRA_DISPLAY#:}"
 rm -f "/tmp/.X${DNUM}-lock" "/tmp/.X11-unix/X${DNUM}" 2>/dev/null || true
 rm -rf "${HOME}/.xpra" 2>/dev/null || true
