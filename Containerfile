@@ -9,7 +9,7 @@ ARG QTILE_VENV=/opt/qtile
 RUN apt-get update && apt-get install -y --no-install-recommends \
       ca-certificates curl wget gnupg \
       caddy openssl tini \
-      xauth dbus-x11 strace \
+      xauth dbus-x11 libx264-164 \
       fonts-dejavu fonts-liberation \
       python3-websockify \
     && rm -rf /var/lib/apt/lists/*

@@ -13,6 +13,10 @@ set -euo pipefail
 BASE_DIR="/opt/pukaipu"
 DEFAULT_START_PORT=8443
 
+# New users created by this script must be in this UID/GID range:
+UID_MIN=3000
+UID_MAX=4000
+
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 
 die() { echo "ERROR: $*" >&2; exit 1; }
@@ -47,6 +51,7 @@ IMAGE_TAG=""
 
 validate_fqdn() {
   local f="$1"
+  # Simple, strict-enough FQDN check (labels 1..63, no underscores, no trailing dot)
   [[ "$f" =~ ^[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?(\.[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+$ ]] \
     || die "invalid fqdn: '$f'"
 }
@@ -81,6 +86,33 @@ parse_args() {
   validate_fqdn "$FQDN"
 }
 
+# -------- UID/GID allocation in range 3000-4000 --------
+
+uid_in_use() {
+  local uid="$1"
+  getent passwd | awk -F: -v u="$uid" '$3==u{found=1} END{exit found?0:1}'
+}
+
+gid_in_use() {
+  local gid="$1"
+  getent group | awk -F: -v g="$gid" '$3==g{found=1} END{exit found?0:1}'
+}
+
+find_free_id_in_range() {
+  # find_free_id_in_range <min> <max> <type>
+  # type: "uid" or "gid"
+  local min="$1" max="$2" type="$3"
+  local i
+  for i in $(seq "$min" "$max"); do
+    if [[ "$type" == "uid" ]]; then
+      uid_in_use "$i" || { echo "$i"; return 0; }
+    else
+      gid_in_use "$i" || { echo "$i"; return 0; }
+    fi
+  done
+  return 1
+}
+
 ensure_user_with_home() {
   local u="$1"
   local h="/home/$u"
@@ -92,8 +124,30 @@ ensure_user_with_home() {
     return 0
   fi
 
+  # Allocate UID in range
+  local uid gid
+  uid="$(find_free_id_in_range "$UID_MIN" "$UID_MAX" "uid")" \
+    || die "no free UID available in range ${UID_MIN}-${UID_MAX}"
+
+  # Prefer GID = UID if free; else allocate another GID in range
+  if gid_in_use "$uid"; then
+    gid="$(find_free_id_in_range "$UID_MIN" "$UID_MAX" "gid")" \
+      || die "no free GID available in range ${UID_MIN}-${UID_MAX}"
+  else
+    gid="$uid"
+  fi
+
+  # Ensure group exists with chosen GID
+  if ! getent group "$u" >/dev/null 2>&1; then
+    groupadd --gid "$gid" "$u"
+  else
+    gid="$(getent group "$u" | awk -F: '{print $3}')"
+  fi
+
+  # Create user (NO --system) with selected UID/GID
   useradd \
-    --system \
+    --uid "$uid" \
+    --gid "$gid" \
     --create-home \
     --home-dir "$h" \
     --shell /usr/sbin/nologin \
@@ -101,7 +155,11 @@ ensure_user_with_home() {
 
   passwd -l "$u" >/dev/null 2>&1 || true
   chmod 0750 "$h" 2>/dev/null || true
+
+  log "created user '$u' uid=$uid gid=$gid (range ${UID_MIN}-${UID_MAX})"
 }
+
+# -------- file staging / compose generation --------
 
 copy_if_missing() {
   local src="$1"
@@ -154,7 +212,6 @@ write_compose_if_missing() {
   fi
   local image_name="pukaipu:${IMAGE_TAG}"
 
-  # sanity: build inputs must exist in the repo
   [[ -f "${SCRIPT_DIR}/Containerfile" ]] || die "missing Containerfile in repo: ${SCRIPT_DIR}/Containerfile"
 
   cat > "$yml" <<EOF
