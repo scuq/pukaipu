@@ -70,6 +70,9 @@ if [[ -f "${DEFAULT_CFG_ROOT}/kitty/kitty.conf" && ! -s "${PERSIST_CONFIG}/kitty
   cp -a "${DEFAULT_CFG_ROOT}/kitty/kitty.conf" "${PERSIST_CONFIG}/kitty/kitty.conf"
 fi
 
+# install custom ca certs
+/usr/local/bin/add_custom_ca.sh || true
+
 # -------------------------------------------------------------------
 # 3) Start Caddy
 # -------------------------------------------------------------------

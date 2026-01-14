@@ -115,6 +115,8 @@ RUN set -eux; \
 # Config + entrypoint
 COPY cert.sh /usr/local/bin/cert.sh
 RUN chmod +x /usr/local/bin/cert.sh
+COPY add_custom_ca.sh /usr/local/bin/add_custom_ca.sh
+RUN chmod +x /usr/local/bin/add_custom_ca.sh
 COPY Caddyfile /etc/caddy/Caddyfile
 COPY start.sh /usr/local/bin/start.sh
 RUN chmod +x /usr/local/bin/start.sh
