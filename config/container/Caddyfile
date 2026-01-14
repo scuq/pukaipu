@@ -1,3 +1,8 @@
+{
+  auto_https disable_redirects
+  auto_https off
+}
+
 :8443 {
 	# Server cert signed by your CA
 	tls /data/certs/server.crt /data/certs/server.key {
