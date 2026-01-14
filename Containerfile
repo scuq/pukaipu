@@ -22,6 +22,17 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       libffi8 \
     && rm -rf /var/lib/apt/lists/*
 
+# --- Optional build-time CA injection (local files, gitignored) ---
+# Ensure config/build-ca exists in repo (tracked via .keep), but certs are ignored by git.
+COPY config/build-ca/ /usr/local/share/ca-certificates/pukaipu-build/
+RUN set -eu; \
+    if find /usr/local/share/ca-certificates/pukaipu-build -maxdepth 1 -type f -name '*.crt' | grep -q .; then \
+        update-ca-certificates; \
+        echo "[build-ca] installed custom build CAs"; \
+    else \
+        echo "[build-ca] no custom build CAs found, skipping"; \
+    fi
+
 # Install Qtile into a dedicated venv (pinned)
 RUN set -eux; \
     python3 -m venv "${QTILE_VENV}"; \
