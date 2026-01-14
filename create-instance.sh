@@ -239,8 +239,8 @@ services:
       - apparmor:pukaipu
 
     volumes:
-      - ${host_home}:/data/home
-      - /opt/pukaipu/${u}/certs:/data/certs
+      - ${host_home}:/data/home:Z
+      - /opt/pukaipu/${u}/certs:/data/certs:Z
 
     environment:
       PUKAIPU_USER: "${u}"
