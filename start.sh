@@ -123,8 +123,10 @@ exec xpra start-desktop "${XPRA_DISPLAY}" \
   --bind-ws="${XPRA_WS_BIND:-127.0.0.1:14500}" \
   --auth=none \
   --mdns=no \
-  --encoding=png \
-  --compress=9 \
+  --dpi=96 \
+  --encoding=webp \
+  --quality=100 --min-quality=95 \
+  --speed=0 --min-speed=0 \
   --pulseaudio=no \
   --notifications=no \
   --printing=no \
