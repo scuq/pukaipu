@@ -246,8 +246,8 @@ services:
       PUKAIPU_USER: "${u}"
       PUKAIPU_FQDN: "${fqdn}"
       HOME: "/data/home"
-      BRAVE_URL: "https://example.com"
-      BRAVE_ARGS: "--disable-dev-shm-usage --no-first-run --disable-gpu --disable-software-rasterizer --force-dark-mode --enable-features=WebUIDarkMode"
+      BRAVE_URL: ""
+      BRAVE_ARGS: "--force-device-scale-factor=1 --high-dpi-support=1 --disable-dev-shm-usage --no-first-run --disable-gpu --disable-software-rasterizer --force-dark-mode --enable-features=WebUIDarkMode"
 
     restart: unless-stopped
 
